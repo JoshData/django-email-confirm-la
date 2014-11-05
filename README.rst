@@ -24,6 +24,14 @@ in your ``settings.py``:
     EMAIL_CONFIRMATION_LA_HTTP_PROTOCOL = 'http'
     EMAIL_CONFIRMATION_LA_DOMAIN = 'your-domain.com'
 
+    """
+    If you're using South with Django <= 1.6, you'll have to do this:
+    """
+    SOUTH_MIGRATION_MODULES = {
+        'email_confirm_la': 'email_confirm_la.south_migrations',
+        ...
+    }
+
 in your ``urls.py``:
 
 .. code-block:: python
