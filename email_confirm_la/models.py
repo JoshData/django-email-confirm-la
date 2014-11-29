@@ -26,7 +26,7 @@ from email_confirm_la.exceptions import EmailConfirmationExpired
 
 class EmailConfirmationManager(models.Manager):
 
-    def set_email_for_object(self, email, content_object, email_field_name='email', is_primary=True, skip_verify=False, template_context=None):
+    def set_email_for_object(self, email, content_object, email_field_name='email', is_primary=True, skip_verify=False, template_context=None, mailer=None):
         """
         只有 `is_primary=True` 時，email 才會被 save 到 content_object 的 email_field_name 欄位
         """
@@ -48,7 +48,7 @@ class EmailConfirmationManager(models.Manager):
             confirmation.save()
 
             if not skip_verify:
-                confirmation.send(template_context)
+                confirmation.send(template_context, mailer=mailer)
 
         if is_primary:
             confirmation = confirmation.set_primary()
@@ -130,7 +130,7 @@ class EmailConfirmation(models.Model):
 
         return final_url
 
-    def send(self, template_context=None):
+    def send(self, template_context=None, mailer=None):
         default_template_context = {
             'email': self.email,
             'confirmation_key': self.confirmation_key,
@@ -141,17 +141,21 @@ class EmailConfirmation(models.Model):
         else:
             template_context = default_template_context
 
-        subject = render_to_string('email_confirm_la/email/email_confirmation_subject.txt', template_context)
-        subject = ''.join(subject.splitlines())  # remove superfluous line breaks
-        body = render_to_string('email_confirm_la/email/email_confirmation_message.html', template_context)
+        if not mailer:
+            subject = render_to_string('email_confirm_la/email/email_confirmation_subject.txt', template_context)
+            subject = ''.join(subject.splitlines())  # remove superfluous line breaks
+            body = render_to_string('email_confirm_la/email/email_confirmation_message.html', template_context)
 
-        message = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [self.email, ])
-        message.content_subtype = 'html'
-        # message.send()
+            message = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [self.email, ])
+            message.content_subtype = 'html'
+            # message.send()
 
-        # TODO: send mass emails?
-        connection = get_connection(settings.EMAIL_CONFIRM_LA_EMAIL_BACKEND)
-        connection.send_messages([message, ])
+            # TODO: send mass emails?
+            connection = get_connection(settings.EMAIL_CONFIRM_LA_EMAIL_BACKEND)
+            connection.send_messages([message, ])
+        else:
+            # Use user-provider mail function.
+            mailer(template_context)
 
         self.send_at = timezone.now()
         # self.save(update_fields=['send_at', ])

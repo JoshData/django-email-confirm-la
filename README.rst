@@ -181,6 +181,19 @@ Default values of app settings:
     EMAIL_CONFIRM_LA_CONFIRM_URL_REVERSE_NAME = 'confirm_email'
     EMAIL_CONFIRM_LA_SAVE_EMAIL_TO_INSTANCE = True
 
+Overriding How Mails Are Sent
+=============================
+
+You may pass a function as the optional `mailer` argument to `set_email_for_object`. If you do so, instead of sending an email using Django's built in template rendering and email methods, your mailer function will be called with a dict:
+
+    {
+        'email': "email-being-confirmed@domain.dom",
+        'confirmation_key': "randomtexthere",
+        'confirmation_url': "http://yoursite.com/path/to/confirm/url",
+    }
+
+You are then responsible for sending the email.
+
 Run Tests
 =========
 
