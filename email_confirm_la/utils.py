@@ -5,7 +5,7 @@ import hashlib
 import random
 
 
-def generate_random_token(factors=None, hash_func=hashlib.sha256):
+def generate_random_token(factors=None, hash_func=hashlib.sha1):
     if factors is None:
         factors = []
 
