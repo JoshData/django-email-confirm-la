@@ -86,6 +86,8 @@ class EmailConfirmation(models.Model):
     is_verified = models.BooleanField(verbose_name=_('ec_la', 'Is verified'), default=False)
     send_at = models.DateTimeField(null=True, blank=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
+    send_count = models.IntegerField(default=0)
+    created = models.DateTimeField(auto_now_add=True)
 
     objects = EmailConfirmationManager()
 
@@ -158,8 +160,9 @@ class EmailConfirmation(models.Model):
             mailer(template_context)
 
         self.send_at = timezone.now()
+        self.send_count = self.send_count + 1
         # self.save(update_fields=['send_at', ])
-        update_fields(self, fields=('send_at', ))
+        update_fields(self, fields=('send_at', 'send_count'))
 
         signals.post_email_confirmation_send.send(
             sender=self.__class__,
