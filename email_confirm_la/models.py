@@ -25,6 +25,14 @@ from email_confirm_la.exceptions import EmailConfirmationExpired
 
 
 class EmailConfirmationManager(models.Manager):
+    def get_for_object(self, email, content_object, email_field_name='email'):
+        content_type = ContentType.objects.get_for_model(content_object)
+        return EmailConfirmation.objects.get(
+            content_type=content_type,
+            object_id=content_object.id,
+            email_field_name=email_field_name,
+            email=email,
+        )
 
     def set_email_for_object(self, email, content_object, email_field_name='email', is_primary=True, skip_verify=False, template_context=None, mailer=None):
         """
@@ -33,12 +41,7 @@ class EmailConfirmationManager(models.Manager):
 
         content_type = ContentType.objects.get_for_model(content_object)
         try:
-            confirmation = EmailConfirmation.objects.get(
-                content_type=content_type,
-                object_id=content_object.id,
-                email_field_name=email_field_name,
-                email=email,
-            )
+            confirmation = self.get_for_object(email, content_object, email_field_name=email_field_name)
         except EmailConfirmation.DoesNotExist:
             confirmation = EmailConfirmation()
             confirmation.content_object = content_object
