@@ -18,6 +18,8 @@ resend_confirmation_email.short_description = 'Re-send selected %(verbose_name_p
 class EmailConfirmationAdmin(admin.ModelAdmin):
 
     def show_content_type(self, obj):
+        if obj.content_object is None:
+            return "(object deleted)"
         return obj.content_object._meta.object_name
     show_content_type.short_description = 'Content type'
 
