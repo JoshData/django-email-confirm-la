@@ -20,9 +20,8 @@ class ECLAAppConf(AppConf):
         prefix = 'email_confirm_la'
 
     def configure_domain(self, value):
-        from django.contrib.sites.models import Site
-
         if not value:
+            from django.contrib.sites.models import Site
             try:
                 current_site = Site.objects.get_current()
             except ImproperlyConfigured:
