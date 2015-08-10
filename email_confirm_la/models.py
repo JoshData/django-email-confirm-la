@@ -142,7 +142,7 @@ class EmailConfirmation(models.Model):
             'confirmation_url': self.get_confirmation_url(),
         }
         if isinstance(template_context, dict):
-            template_context = dict(default_template_context.items() + template_context.items())  # merge dictionaries
+            template_context = dict(list(default_template_context.items()) + list(template_context.items()))  # merge dictionaries
         else:
             template_context = default_template_context
 
