@@ -9,7 +9,7 @@ class Command(BaseCommand):
 
     def handle(self, **options):
         count = 0
-        expired_email_confirmations = EmailConfirmation.objects.filter(is_verified=False)
+        expired_email_confirmations = EmailConfirmation.objects.filter(confirmed_at=None)
         for email_confirmation in expired_email_confirmations.iterator():
             if email_confirmation.is_expired():
                 email_confirmation.delete()

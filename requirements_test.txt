@@ -1,4 +1,0 @@
--r requirements.txt
-coveralls
-freezegun
-model_mommy

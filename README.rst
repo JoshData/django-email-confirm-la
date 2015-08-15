@@ -1,33 +1,10 @@
-django-email-confirm-la
-=======================
+django-email-confirm-itf
+========================
 
-.. image:: http://img.shields.io/travis/vinta/django-email-confirm-la/master.svg?style=flat-square
-    :alt: Build Badge
-    :target: https://travis-ci.org/vinta/django-email-confirm-la
-
-.. image:: http://img.shields.io/coveralls/vinta/django-email-confirm-la/master.svg?style=flat-square
-    :alt: Coverage Badge
-    :target: https://coveralls.io/r/vinta/django-email-confirm-la
-
-.. image:: http://img.shields.io/pypi/v/django-email-confirm-la.svg?style=flat-square
-    :alt: Version Badge
-    :target: https://pypi.python.org/pypi/django-email-confirm-la
-
-Django email confirmation for any Model and any Field.
-
-Requirements
-============
-
-- Python (2.6, 2.7, 3.3, 3.4)
-- Django (1.4, 1.5, 1.6, 1.7)
+Django email confirmation for any model with simple callbacks. Based originally on `django-email-confirm-la <https://github.com/vinta/django-email-confirm-la>`_. For Python 3/Django 1.7+.
 
 Installation
 ============
-
-.. code-block:: bash
-
-    $ pip install django-email-confirm-la
-
 
 In your ``settings.py``:
 
@@ -42,10 +19,7 @@ Add the ``email_confirm_la`` app (put it *after* your apps) and set the required
     )
 
     DEFAULT_FROM_EMAIL = 'hello@your-domain.com'
-    EMAIL_CONFIRM_LA_HTTP_PROTOCOL = 'http'
-    EMAIL_CONFIRM_LA_DOMAIN = 'your-domain.com'
-
-If you are using the `sites <https://docs.djangoproject.com/en/dev/ref/contrib/sites/>`_ framework, then ``EMAIL_CONFIRM_LA_DOMAIN`` can be omitted and ``Site.objects.get_current().domain`` will be used.
+    SITE_ROOT_URL = 'https://yoursite.com' # no trailing slash!
 
 In your ``urls.py``:
 
@@ -53,16 +27,19 @@ In your ``urls.py``:
 
     urlpatterns = patterns(
         '',
-        url(r'^email_confirmation/', include('email_confirm_la.urls')),
+        url(r'^ev/', include('email_confirm_la.urls')),
         ...
     )
+
+which creates a short path for email confirmation return URLs, but you can set `ev` to anything.
 
 then run
 
 .. code-block:: bash
 
-    $ python manage.py syncdb
     $ python manage.py migrate
+
+to create the database table.
 
 Models
 ======
@@ -78,84 +55,64 @@ For User Model
     user = User.objects.get(username='vinta')
     unconfirmed_email = 'vinta.chen@gmail.com'
 
-    email_confirmation = EmailConfirmation.objects.set_email_for_object(
-        email=unconfirmed_email,
-        content_object=user,
-    )
+    email_confirmation = EmailConfirmation.create(user, email=unconfirmed_email)
+    email_confirmation.send()
 
-For Any Model And Any Field
-===========================
+When the user clicks the confirmation link in the sent email, the 'email' field on the User object will be filled in and saved. For other models, you might need to set the ``email_field_name`` keyword argument to ``create`` to something other than ``"email"``.
 
-Assumed you have a model:
+The user will be shown a simple confirmation page. To override that page, create a template at ``email_confirm_la/email_confirm_success.html`` (or see below for a more complex way).
 
-.. code-block:: python
+Overriding Confirmation Behavior
+================================
 
-    from django.db import models
-
-    class YourModel(models.Model):
-        ...
-        customer_support_email = models.EmailField(max_length=255, null=True, blank=True)
-        marketing_email = models.EmailField(max_length=255, null=True, blank=True)
-        ...
-
-And you want to confirm some emails:
+The default behavior is to save the email address directly into the object provided to ``create``. You can instead perform any function by defining a new method on your object, e.g.:
 
 .. code-block:: python
 
-    from your_app.models import YourModel
-    from email_confirm_la.models import EmailConfirmation
+class User(models.Model):
+    ...
 
-    some_model_instance = YourModel.objects.get(id=42)
 
-    email_confirmation = EmailConfirmation.objects.set_email_for_object(
-        email='marvin@therestaurantattheendoftheuniverse.com',
-        content_object=some_model_instance,
-        email_field_name='customer_support_email'
-    )
+    def email_confirmation_confirmed(self, email_confirmation, request)
+        self.email = email_confirmation.email
+        self.save()
 
-    email_confirmation = EmailConfirmation.objects.set_email_for_object(
-        email='arthur.dent@therestaurantattheendoftheuniverse.com',
-        content_object=some_model_instance,
-        email_field_name='marketing_email'
-    )
+``email_confirmation`` is an email_confirm_la.EmailConfirmation instance, so you can see the source for other fields you could access here. ``request`` is the Django HttpRequest instance for the currently executing view, which allows you to use the Django messages framework, for instance.
 
-Signals
-=======
-
-- ``post_email_confirmation_send``
-- ``post_email_confirm``
-- ``post_email_save``
-
-In your ``models.py``:
+In cases where you've saved the address in your own model and want to set a confirmed flag, you would do this:
 
 .. code-block:: python
+from django.contrib import messages
 
-    from django.dispatch import receiver
-    from email_confirm_la.signals import post_email_confirm
+class Record(models.Model):
+    email = models.EmailField(max_length=255)
+    is_confirmed = models.BooleanField(default=False)
 
-    @receiver(post_email_confirm)
-    def post_email_confirm_callback(sender, confirmation, **kwargs):
-        model_instace = confirmation.content_object
-        email = confirmation.email
+    def send_confirmation(self):
+        email_confirmation = EmailConfirmation.create(self)
+        email_confirmation.send()
 
-        do_your_stuff()
-
-You shoud expect that the ``post_email_confirm`` signal may be sent more than once if the user clicks on the confirmation link more than once (possibly by accident). This is by design so that the correct HttpResponse can be given in those cases (see next paragraph).
-
-The ``post_email_confirm`` signal handler will also recieve the HttpRequest object as a keyword argument (which allows you to set messages, for instance) and can return an HttpResponse to override the default behavior of showing a simple success page. For example:
-
-.. code-block:: python
-
-    from django.contrib import messages
-    from django.http import HttpResponseRedirect
-
-    @receiver(post_email_confirm)
-    def post_email_confirm_callback(sender, confirmation, request=None, **kwargs):
-        ...
+    def email_confirmation_confirmed(self, email_confirmation, request)
+        self.is_confirmed = True
+        self.save()
         messages.add_message(request, messages.SUCCESS, 'You are confirmed.')
-        return HttpResponseRedirect(model_instace.get_absolute_url())
 
-If multiple handlers are registered to receive the signal, the first to return a value besides None will determine the response sent to the user. 
+``email_confirmation_confirmed`` will be called at most once per confirmation.
+
+Overring the Success View
+=========================
+
+The success view can be completely overridden by defining a ``email_confirmation_response_view`` instance method on your object. It is called immediately after ``email_confirmation_confirmed`` (or the default confirmation behavior), so you can assume the email address is already confirmed.
+
+.. code-block:: python
+
+class Record(models.Model):
+    ...
+
+    def email_confirmation_response_view(self, request):
+        return HttpResponseRedirect(self.get_absolute_url())
+
+This view may be called multiple times for the same confirmation, because users often mis-click and load email confirmation links more than once. 
 
 Commands
 ========
@@ -167,7 +124,7 @@ Commands
 Templates
 =========
 
-You will want to override the project's email text and confirmation page.
+You will want to override the project's email text and (if you haven't provided a response view) confirmation page.
 
 Ensure the ``email_confirm_la`` app in ``INSTALLED_APPS`` is after the app that you will place the customized templates in so that the `django.template.loaders.app_directories.Loader <https://docs.djangoproject.com/en/dev/ref/templates/api/#django.template.loaders.app_directories.Loader>`_ finds *your* templates before the default templates.
 
@@ -175,6 +132,7 @@ Then copy the templates into your app:
 
 .. code-block:: bash
 
+    $ mkdir -p your_app/templates/email_confirm_la
     $ cp -R django-email-confirm-la/email_confirm_la/templates/email_confirm_la your_app/templates/email_confirm_la
 
 Finally, modify them:
@@ -187,21 +145,17 @@ Finally, modify them:
 Settings
 ========
 
-Default values of app settings:
+Default values of other app settings:
 
 .. code-block:: python
 
     EMAIL_CONFIRM_LA_EMAIL_BACKEND = settings.EMAIL_BACKEND
-    EMAIL_CONFIRM_LA_HTTP_PROTOCOL = 'http'
-    EMAIL_CONFIRM_LA_DOMAIN = ''  # remember to override this setting!
     EMAIL_CONFIRM_LA_CONFIRM_EXPIRE_SEC = 60 * 60 * 24 * 1  # 1 day
-    EMAIL_CONFIRM_LA_CONFIRM_URL_REVERSE_NAME = 'confirm_email'
-    EMAIL_CONFIRM_LA_SAVE_EMAIL_TO_INSTANCE = True
 
 Overriding How Mails Are Sent
 =============================
 
-You may pass a function as the optional `mailer` argument to `set_email_for_object`. If you do so, instead of sending an email using Django's built in template rendering and email methods, your mailer function will be called with a dict:
+You may pass a function as the optional `mailer` argument to `send`. If you do so, instead of sending an email using Django's built in template rendering and email methods, your mailer function will be called with a dict:
 
     {
         'email': "email-being-confirmed@domain.dom",
@@ -209,12 +163,4 @@ You may pass a function as the optional `mailer` argument to `set_email_for_obje
         'confirmation_url': "http://yoursite.com/path/to/confirm/url",
     }
 
-You are then responsible for sending the email.
-
-Run Tests
-=========
-
-.. code-block:: bash
-
-    $ pip install -r requirements_test.txt
-    $ python setup.py test
+You are then responsible for sending the email. ``email_confirmation_subject.txt`` and ``email_confirmation_message.html`` are not used in this case.
